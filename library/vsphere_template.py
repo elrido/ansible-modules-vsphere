@@ -9,9 +9,9 @@ parameters of the VM compared to the template.
 DOCUMENTATION = '''
 ---
 module: vsphere_template
-short_description: Create a VM based on a template
+short_description: Create/Change a VM based on a template
 description:
-    - This module creates a new VMs based on a template, optionally changing certain parameters of the VM compared to the template.
+    - This module creates a new VMs based on a template, optionally changing certain parameters of the VM compared to the template. It can also change these parameters (all except for the datastore) on an existing VM.
 version_added: "not yet"
 options:
   vcenter_hostname:
@@ -38,13 +38,9 @@ options:
     description:
       - The name of the resource pool to migrate the VM to.
     required: true
-  datacenter:
-    description:
-      - The name of the datacenter to migrate the VM to.
-    required: true
   datastore:
     description:
-      - The name of the datastore to migrate the VM to.
+      - The name of the datastore to create the VM into. This parameter is not considered when changing an existing VM, as it may have unexpected and dangerous results, e.g. migrating contents of multiple datastores into a single one.
     required: true
   folder:
     description:
@@ -57,12 +53,12 @@ options:
     default: none
   num_cpus:
     description:
-        - The number of CPUs the VM should have, defaults to 2 CPUs.
+        - The number of CPUs the VM should have, defaults to 2 CPUs. When changing this on an existing VM, you need to shutdown the VM beforehand.
     required: false
     default: 2
   memory_mb:
     description:
-        - The number of CPUs the VM should have, defaults to 4096 MiB.
+        - The number of CPUs the VM should have, defaults to 4096 MiB. When changing this on an existing VM, you need to shutdown the VM beforehand.
     required: false
     default: 4096
   port:
@@ -80,7 +76,7 @@ author:
     - Simon Rupf, based on examples by Dann Bohn
 '''
 EXAMPLES = '''
-# Create new machine from template
+# minimal example to create a new machine from a template
 - vsphere_template:
     vcenter_hostname: vcenter.mydomain.local
     username: myuser
@@ -89,7 +85,6 @@ EXAMPLES = '''
     template_src: mytemplate
     resource_pool: MyResourcePool
     datastore: MyDataStore
-    datacenter: MyDataCenterName
     folder: MyFolder
 '''
 
@@ -110,7 +105,6 @@ def main():
             guest=dict(required=True, type='str'),
             template_src=dict(required=True, type='str'),
             datastore=dict(required=True, type='str'),
-            datacenter=dict(required=True, type='str'),
             folder=dict(required=True, type='str'),
             resource_pool=dict(required=True, type='str'),
             notes=dict(required=False, type='str', default=''),
@@ -129,22 +123,15 @@ def main():
             user=module.params['username'],
             pwd=module.params['password'],
             port=module.params['port'])
-        # and don't forget to disconnect
-        atexit.register(Disconnect, connection)
     except:
         module.fail_json(
             msg='failed to connect to vCenter server at %s with user %s' %
             (module.params['vcenter_hostname'], module.params['username']))
-
+    # and don't forget to disconnect
+    atexit.register(Disconnect, connection)
     content = connection.RetrieveContent()
 
     # validate parameters
-    guest = get_obj(content, [vim.VirtualMachine], module.params['guest'])
-    if guest:
-        module.exit_json(
-            changed=False,
-            ansible_facts=gather_facts(guest))
-
     template = get_obj(
         content,
         [vim.VirtualMachine],
@@ -157,11 +144,6 @@ def main():
     if not datastore:
         module.fail_json(msg='datastore %s not found on vCenter server at %s' %
             (module.params['datastore'], module.params['vcenter_hostname']))
-
-    datacenter = get_obj(content, [vim.Datacenter], module.params['datacenter'])
-    if not datacenter:
-        module.fail_json(msg='datacenter %s not found on vCenter server at %s' %
-            (module.params['datacenter'], module.params['vcenter_hostname']))
 
     folder = get_obj(content, [vim.Folder], module.params['folder'])
     if not folder:
@@ -176,6 +158,11 @@ def main():
         module.fail_json(
             msg='resource_pool %s not found on vCenter server at %s' %
             (module.params['resource_pool'], module.params['vcenter_hostname']))
+
+    # is this a change of an existing machine or a new creation operation?
+    guest = get_obj(content, [vim.VirtualMachine], module.params['guest'])
+    if guest:
+        change_guest(guest, module, datastore, folder, resource_pool)
 
     # prepare relocation specification
     relospec = vim.vm.RelocateSpec()
@@ -210,8 +197,92 @@ def main():
         changes = ['vm %s has been created' % module.params['guest']]
 
     module.exit_json(
-        changed=True, changes=changes,
+        changed=True,
+        changes=changes,
         ansible_facts=gather_facts(new_vm))
+
+def change_guest(
+    guest,
+    module,
+    datastore,
+    folder,
+    resource_pool):
+    """Reconfigures guest and exits with the result"""
+    changes = []
+    relocation_required = False
+    reconfiguration_required = False
+    requires_shutdown = False
+    relocation_spec = vim.vm.RelocateSpec()
+    virtualmachine_conf = vim.vm.ConfigSpec()
+
+    # This works as long as there is only one datastore.
+    # For VMDKs on multiple datastores or raw LUNs, this may cause
+    # unexpected and dangerous results, therefore it is uncommented for now
+    #if guest.datastore[0].name != datastore.name:
+    #    changes.append('Relocate VM from datastore %s to %s' %
+    #        (guest.datastore[0].name, datastore.name))
+    #    relocation_spec.datastore = datastore
+    #    relocation_required = True
+
+    if guest.resourcePool.name != resource_pool.name:
+        changes.append('Relocate VM from resource pool %s to %s' %
+            (guest.resourcePool.name, resource_pool.name))
+        relocation_spec.pool = resource_pool
+        relocation_required = True
+
+    if guest.parent.name != folder.name:
+        changes.append('Relocate VM from folder %s to %s' %
+            (guest.folder.name, folder.name))
+        relocation_spec.folder = folder
+        relocation_required = True
+
+    if guest.config.annotation != module.params['notes']:
+        changes.append('Change configured annotation of VM from "%s" to "%s"' %
+            (guest.config.annotation, module.params['notes']))
+        virtualmachine_conf.annotation = module.params['notes']
+        reconfiguration_required = True
+
+    if guest.config.hardware.numCPU != module.params['num_cpus']:
+        changes.append('Change configured number of CPUs of VM from %d to %d' %
+            (guest.config.hardware.numCPU, module.params['num_cpus']))
+        virtualmachine_conf.numCPUs = module.params['num_cpus']
+        reconfiguration_required = True
+        requires_shutdown = True
+
+    if guest.config.hardware.memoryMB != module.params['memory_mb']:
+        changes.append('Change configured memory in MB of VM from %d to %d' %
+            (guest.config.hardware.memoryMB, module.params['memory_mb']))
+        virtualmachine_conf.memoryMB = module.params['memory_mb']
+        reconfiguration_required = True
+        requires_shutdown = True
+
+    if len(changes) > 0:
+        if  requires_shutdown and \
+            guest.summary.runtime.powerState == 'poweredOn':
+            module.fail_json(
+                msg=('VM %s is powered on and virtual hardware changes have ' +
+                'been detected. Please shutdown the VM and rerun this action ' +
+                'to apply the following changes: %s') %
+                (module.params['guest'], ', '.join(changes)))
+        else:
+            if module.check_mode:
+                changes.append('These changes were detected, but not ' +
+                'applied, due to running in check mode')
+            else:
+                if relocation_required:
+                    task = guest.RelocateVM_Task(spec=relocation_spec)
+                    wait_for_task(module, task)
+                if reconfiguration_required:
+                    task = guest.ReconfigVM_Task(spec=virtualmachine_conf)
+                    wait_for_task(module, task)
+            module.exit_json(
+                changed=True,
+                changes=changes,
+                ansible_facts=gather_facts(guest))
+    else:
+        module.exit_json(
+            changed=False,
+            ansible_facts=gather_facts(guest))
 
 def get_obj(content, vimtype, name):
     """Returns an object based on it's vimtype and name"""
