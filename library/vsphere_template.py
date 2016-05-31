@@ -137,8 +137,8 @@ def main():
         [vim.VirtualMachine],
         module.params['template_src'])
     if not template:
-        module.fail_json(msg='template %s not found on vCenter server at %s' %
-            (module.params['template'], module.params['vcenter_hostname']))
+        module.fail_json(msg='template "%s" not found on vCenter server at %s' %
+            (module.params['template_src'], module.params['vcenter_hostname']))
 
     datastore = get_obj(content, [vim.Datastore], module.params['datastore'])
     if not datastore:
