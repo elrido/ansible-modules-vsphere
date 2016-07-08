@@ -29,6 +29,13 @@ short_description: Create/Change a VM based on a template
 description:
     - This module creates a new VMs based on a template, optionally changing certain parameters of the VM compared to the template. It can also change these parameters (all except for the datastore) on an existing VM.
 version_added: "not yet"
+notes:
+    - This module should run from a system that can access vSphere directly.
+      Either by using local_action, or using delegate_to.
+    - Tested on vSphere 5.1 and 5.5
+requirements:
+    - "python >= 2.6"
+    - PyVmomi
 options:
   vcenter_hostname:
     description:

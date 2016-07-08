@@ -12,6 +12,13 @@ short_description: Checks the VMware tools status in a guest VM
 description:
     - This module checks the VMware tools status in a guest VM, optionally upgrading them.
 version_added: "not yet"
+notes:
+    - This module should run from a system that can access vSphere directly.
+      Either by using local_action, or using delegate_to.
+    - Tested on vSphere 5.1 and 5.5
+requirements:
+    - "python >= 2.6"
+    - PyVmomi
 options:
   vcenter_hostname:
     description:

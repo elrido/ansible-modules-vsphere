@@ -28,6 +28,13 @@ short_description: Control resource pools of VMs
 description:
      - This module controls resource pools of VMs, (online) migrating them there if necessary.
 version_added: "not yet"
+notes:
+    - This module should run from a system that can access vSphere directly.
+      Either by using local_action, or using delegate_to.
+    - Tested on vSphere 5.1 and 5.5
+requirements:
+    - "python >= 2.6"
+    - PyVmomi
 options:
   vcenter_hostname:
     description:
