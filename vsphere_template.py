@@ -1,7 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-
 # Create a VM based on a template
 #
 # This module creates a new VMs based on a template, optionally changing certain
@@ -20,7 +19,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
+# along with Ansible. If not, see <http://www.gnu.org/licenses/>.
 
 DOCUMENTATION = '''
 ---

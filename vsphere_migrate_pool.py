@@ -3,8 +3,8 @@
 
 # Control resource pools of VMs
 #
-# This module controls resource pools of VMs,
-# (online) migrating them there if necessary.
+# This module controls resource pools of VMs, (online) migrating them there if
+# necessary.
 #
 # (c) 2016, Simon Rupf <simon@rupf.net>
 #
