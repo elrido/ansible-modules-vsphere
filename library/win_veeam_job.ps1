@@ -147,7 +147,7 @@ if ($state -eq "present") {
     $job_options.BackupStorageOptions.RetainDays = $retain_days
 
     $schedule_params = @{
-        Job = $name
+        Job = $job
     }
     $schedule_params.Add($schedule, $true)
     if ($schedule -eq "Daily" -or $schedule -eq "Monthly") {
@@ -182,7 +182,7 @@ if ($state -eq "present") {
     }
 
     $advanced_params = @{
-        Job = $name
+        Job = $job
         Algorithm = $algorithm
     }
     if ($full) {
@@ -218,16 +218,16 @@ if ($state -eq "present") {
         try {
             Set-VBRJobOptions -Job $job -Options $job_options | Out-Null
             Set-VBRJobSchedule @schedule_params | Out-Null
-            Set-VBRJobAdvancedOptions -Job $name -RetainDays $retain_days | Out-Null
+            Set-VBRJobAdvancedOptions -Job $job -RetainDays $retain_days | Out-Null
             Set-VBRJobAdvancedBackupOptions @advanced_params | Out-Null
             if ($filesystem_indexing) {
-                Enable-VBRJobGuestFSIndexing -Job $name | Out-Null
+                Enable-VBRJobGuestFSIndexing -Job $job | Out-Null
             } else {
-                Disable-VBRJobGuestFSIndexing -Job $name | Out-Null
+                Disable-VBRJobGuestFSIndexing -Job $job | Out-Null
             }
             if ($vss -and $user -ne $null) {
-                Set-VBRJobVssOptions -Job $name -Options $vss_options | Out-Null
-                Set-VBRJobVssOptions -Job $name -Credential $credentials | Out-Null
+                Set-VBRJobVssOptions -Job $job -Options $vss_options | Out-Null
+                Set-VBRJobVssOptions -Job $job -Credential $credentials | Out-Null
             }
             if ($proxies.Length -gt 0) {
                 $viproxies = Get-VBRViProxy -Name $proxies
@@ -245,7 +245,8 @@ if ($state -eq "present") {
     if ($job -ne $null) {
         if (-not $check_mode) {
             try {
-                $job | Disable-VBRJobSchedule | Out-Null
+                Disable-VBRJobSchedule -Job $job | Out-Null
+                Disable-VBRJob -Job $job | Out-Null
             } catch {
                 Fail-Json $result $_.Exception.Message
             }
