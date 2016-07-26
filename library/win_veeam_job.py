@@ -64,6 +64,10 @@ options:
       - yes
       - no
     default: no
+  proxies:
+    description:
+      - Name of a single backup proxy or a comma-separated list of backup proxies. Falls back to automatic proxy selection if not set or empty.
+    required: false
   algorithm:
     description:
       - In Incremental mode the first job run creates a full backup file, and the subsequent runs backups only store the changed blocks. In ReverseIncremental mode every job run creates a full backup file by merging a previous full backup with recent changes.

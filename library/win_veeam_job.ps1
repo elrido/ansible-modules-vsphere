@@ -69,6 +69,7 @@ $state                             = Get-Attr $params "state" "present"         
 $hosts                             = Get-Attr $params "hosts" -FailIfEmpty $true | % { $_.Split(',').Trim() }
 $repository                        = Get-Attr $params "repository" -FailIfEmpty $true
 $repository_scaleout               = Get-Attr $params "repository_scaleout" $false | ConvertTo-Bool
+$proxies                           = Get-Attr $params "proxies" | % { $_.Split(',').Trim() }
 $algorithm                         = Get-Attr $params "algorithm" "Incremental"     -ResultObj $result -ValidateSet $algorithms
 $filesystem_indexing               = Get-Attr $params "filesystem_indexing" $false | ConvertTo-Bool
 $retain_days                       = Get-Int  $params "retain_days" 14              -ResultObj $result -Min 1
@@ -228,7 +229,14 @@ if ($state -eq "present") {
                 Set-VBRJobVssOptions -Job $name -Options $vss_options | Out-Null
                 Set-VBRJobVssOptions -Job $name -Credential $credentials | Out-Null
             }
-            Get-VBRJob -Name $name | Enable-VBRJobSchedule | Out-Null
+            if ($proxies.Length -gt 0) {
+                $viproxies = Get-VBRViProxy -Name $proxies
+                Set-VBRJobProxy -Job $job -Proxy $viproxies | Out-Null
+            } else {
+                Set-VBRJobProxy -Job $job -AutoDetect | Out-Null
+            }
+            Enable-VBRJobSchedule -Job $job | Out-Null
+            Enable-VBRJob -Job $job | Out-Null
         } catch {
             Fail-Json $result $_.Exception.Message
         }
