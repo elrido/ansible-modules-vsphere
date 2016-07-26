@@ -102,28 +102,39 @@ try {
 }
 
 if ($state -eq "present") {
+    try {
+        $activeVms = @()
+        $vms = Find-VBRViEntity -Name $hosts
+        foreach ($vm in $vms) {
+            if ($vm.UsedSize -gt 0) {
+                $activeVms += $vm
+            }
+        }
+        if ($activeVms.Length -eq 0) {
+            Fail-Json $result "No active hosts found, ensure both vCenters in your SRM configuration are configured in Veeam and the hosts exist"
+        }
+    } catch {
+        Fail-Json $result $_.Exception.Message
+    }
     if ($job -eq $null) {
         if (-not $check_mode) {
             try {
-                $vms = Find-VBRViEntity -Name $hosts
                 if ($repository_scaleout) {
                     $repo = Get-VBRBackupRepository -Name $repository -ScaleOut
                 } else {
                     $repo = Get-VBRBackupRepository -Name $repository
                 }
-                Add-VBRViBackupJob -Name $name -Entity $vms -BackupRepository $repo | Out-Null
+                Add-VBRViBackupJob -Name $name -Entity $activeVms -BackupRepository $repo | Out-Null
                 $job = Get-VBRJob -Name $name
             } catch {
                 Fail-Json $result $_.Exception.Message
             }
-
         }
         $result.changes += "Added new backup job '$name'"
     } else {
         if (-not $check_mode) {
             try {
-                $vms = Find-VBRViEntity -Name $hosts
-                Add-VBRViJobObject -Job $job -Entities $vms | Out-Null
+                Add-VBRViJobObject -Job $job -Entities $activeVms | Out-Null
             } catch {
                 Fail-Json $result $_.Exception.Message
             }
