@@ -110,7 +110,7 @@ if ($state -eq "present") {
                 } else {
                     $repo = Get-VBRBackupRepository -Name $repository
                 }
-                $tmp = Add-VBRViBackupJob -Name $name -Entity $vms -BackupRepository $repo
+                Add-VBRViBackupJob -Name $name -Entity $vms -BackupRepository $repo | Out-Null
                 $job = Get-VBRJob -Name $name
             } catch {
                 Fail-Json $result $_.Exception.Message
@@ -118,6 +118,16 @@ if ($state -eq "present") {
 
         }
         $result.changes += "Added new backup job '$name'"
+    } else {
+        if (-not $check_mode) {
+            try {
+                $vms = Find-VBRViEntity -Name $hosts
+                Add-VBRViJobObject -Job $job -Entities $vms | Out-Null
+            } catch {
+                Fail-Json $result $_.Exception.Message
+            }
+        }
+        $result.changes += "Updated backup job '$name'"
     }
 
     if ($vss -and $user -ne $null) {
@@ -205,20 +215,20 @@ if ($state -eq "present") {
 
     if (-not $check_mode) {
         try {
-            $tmp = Set-VBRJobOptions -Job $job -Options $job_options
-            $tmp = Set-VBRJobSchedule @schedule_params
-            $tmp = Set-VBRJobAdvancedOptions -Job $name -RetainDays $retain_days
-            $tmp = Set-VBRJobAdvancedBackupOptions @advanced_params
+            Set-VBRJobOptions -Job $job -Options $job_options | Out-Null
+            Set-VBRJobSchedule @schedule_params | Out-Null
+            Set-VBRJobAdvancedOptions -Job $name -RetainDays $retain_days | Out-Null
+            Set-VBRJobAdvancedBackupOptions @advanced_params | Out-Null
             if ($filesystem_indexing) {
-                $tmp = Enable-VBRJobGuestFSIndexing -Job $name
+                Enable-VBRJobGuestFSIndexing -Job $name | Out-Null
             } else {
-                $tmp = Disable-VBRJobGuestFSIndexing -Job $name
+                Disable-VBRJobGuestFSIndexing -Job $name | Out-Null
             }
             if ($vss -and $user -ne $null) {
-                $tmp = Set-VBRJobVssOptions -Job $name -Options $vss_options
-                $tmp = Set-VBRJobVssOptions -Job $name -Credential $credentials
+                Set-VBRJobVssOptions -Job $name -Options $vss_options | Out-Null
+                Set-VBRJobVssOptions -Job $name -Credential $credentials | Out-Null
             }
-            $tmp = (Get-VBRJob -Name $name | Enable-VBRJobSchedule)
+            Get-VBRJob -Name $name | Enable-VBRJobSchedule | Out-Null
         } catch {
             Fail-Json $result $_.Exception.Message
         }
@@ -227,7 +237,7 @@ if ($state -eq "present") {
     if ($job -ne $null) {
         if (-not $check_mode) {
             try {
-                $job | Disable-VBRJobSchedule
+                $job | Disable-VBRJobSchedule | Out-Null
             } catch {
                 Fail-Json $result $_.Exception.Message
             }
@@ -237,7 +247,7 @@ if ($state -eq "present") {
 }
 
 $result.success = $true
-if ($result.changes.Length > 0) {
+if ($result.changes.Length -gt 0) {
     $result.changed = $true
 }
 Exit-Json $result
