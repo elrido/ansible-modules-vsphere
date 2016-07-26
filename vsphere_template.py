@@ -3,7 +3,7 @@
 
 # Create a VM based on a template
 #
-# This module creates a new VMs based on a template, optionally changing certain
+# This module creates a new VM based on a template, optionally changing certain
 # parameters of the VM compared to the template.
 #
 # (c) 2016, Simon Rupf <simon@rupf.net>
@@ -26,7 +26,7 @@ DOCUMENTATION = '''
 module: vsphere_template
 short_description: Create/Change a VM based on a template
 description:
-    - This module creates a new VMs based on a template, optionally changing certain parameters of the VM compared to the template. It can also change these parameters (all except for the datastore) on an existing VM.
+    - This module creates a new VM based on a template, optionally changing certain parameters of the VM compared to the template. It can also change these parameters (all except for the datastore) on an existing VM.
 version_added: "not yet"
 notes:
     - This module should run from a system that can access vSphere directly.
