@@ -88,6 +88,12 @@ options:
         - The port number under which the API is accessible on the vCenter server, defaults to port 443 (HTTPS).
     required: false
     default: 443
+  certificate_check:
+    description:
+        - As of PyVmomi 6.0 certificate checks are enforced for increased security, defaults to yes. May be disabled if using self signed certificates and have no way of importing it on your ansible host (unsafe).
+    required: false
+    default: yes
+    choices: ['yes', 'no']
   power_on_after_clone:
     description:
       - Specifies if the VM should be powered on after the clone.
@@ -114,7 +120,7 @@ EXAMPLES = '''
 from ansible.module_utils.basic import *
 from pyVmomi import vim
 from pyVim.connect import SmartConnect, Disconnect
-import atexit
+import atexit, requests, ssl
 
 def main():
     """Sets up the module parameters, validates them and perform the change"""
@@ -133,18 +139,38 @@ def main():
             num_cpus=dict(required=False, type='int', default=2),
             memory_mb=dict(required=False, type='int', default=4096),
             port=dict(required=False, type='int', default=443),
+            certificate_check=dict(required=False, type='bool', default=True),
             power_on_after_clone=dict(required=False, type='bool', default=True)
         ),
         supports_check_mode=True
     )
 
     # connect to the vCenter...
+    context = None
+
+    if not module.params['certificate_check']:
+        # disable urllib3 ssl warnings
+        requests.packages.urllib3.disable_warnings()
+
+        # disable SSL certificate verification
+        if hasattr(ssl, 'SSLContext'):
+            context = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+            context.verify_mode = ssl.CERT_NONE
+
     try:
-        connection = SmartConnect(
-            host=module.params['vcenter_hostname'],
-            user=module.params['username'],
-            pwd=module.params['password'],
-            port=module.params['port'])
+        if context:
+            connection = SmartConnect(
+                host=module.params['vcenter_hostname'],
+                user=module.params['username'],
+                pwd=module.params['password'],
+                port=module.params['port'],
+                sslContext=context)
+        else:
+            connection = SmartConnect(
+                host=module.params['vcenter_hostname'],
+                user=module.params['username'],
+                pwd=module.params['password'],
+                port=module.params['port'])
     except:
         module.fail_json(
             msg='failed to connect to vCenter server at %s with user %s' %
